@@ -96,10 +96,6 @@ SHARED_SPECS = dict(
                 choices=["password", "refresh_token"],
                 fallback=(env_fallback, ["SN_GRANT_TYPE"]),
             ),
-            api_path=dict(
-                type="str",
-                default="api/now",
-            ),
             client_id=dict(
                 type="str",
                 fallback=(env_fallback, ["SN_CLIENT_ID"]),
@@ -109,11 +105,14 @@ SHARED_SPECS = dict(
                 no_log=True,
                 fallback=(env_fallback, ["SN_CLIENT_SECRET"]),
             ),
-            custom_headers=dict(type="dict"),
             refresh_token=dict(
                 type="str",
                 no_log=True,
                 fallback=(env_fallback, ["SN_REFRESH_TOKEN"]),
+            ),
+            token_uri=dict(
+                type="str",
+                fallback=(env_fallback, ["SN_TOKEN_URI"]),
             ),
             access_token=dict(
                 type="str",
@@ -184,3 +183,4 @@ SHARED_SPECS = dict(
 
 def get_spec(*param_names):
     return dict((p, SHARED_SPECS[p]) for p in param_names)
+    
