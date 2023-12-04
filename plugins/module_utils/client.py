@@ -11,10 +11,11 @@ import json
 
 from ansible.module_utils.six import PY2
 from ansible.module_utils.six.moves.urllib.error import HTTPError, URLError
-from ansible.module_utils.six.moves.urllib.parse import quote, urlencode
+from ansible.module_utils.six.moves.urllib.parse import urlencode, quote
 from ansible.module_utils.urls import Request, basic_auth_header
 
-from .errors import AuthError, ServiceNowError, UnexpectedAPIResponse
+from .errors import ServiceNowError, AuthError, UnexpectedAPIResponse
+
 
 DEFAULT_HEADERS = dict(Accept="application/json")
 
@@ -50,11 +51,10 @@ class Client:
         password=None,
         grant_type=None,
         refresh_token=None,
+        token_uri=None,
         access_token=None,
         client_id=None,
         client_secret=None,
-        custom_headers=None,
-        api_path="api/now",
         timeout=None,
         validate_certs=None,
     ):
@@ -71,9 +71,8 @@ class Client:
         self.grant_type = "password" if grant_type is None else grant_type
         self.client_id = client_id
         self.client_secret = client_secret
-        self.custom_headers = custom_headers
-        self.api_path = tuple(api_path.strip("/").split("/"))
         self.refresh_token = refresh_token
+        self.token_uri = token_uri
         self.access_token = access_token
         self.timeout = timeout
         self.validate_certs = validate_certs
@@ -90,6 +89,8 @@ class Client:
     def _login(self):
         if self.client_id and self.client_secret:
             return self._login_oauth()
+        elif self.token_uri:
+            return self._login_oauth_uri()
         elif self.access_token:
             return self._login_access_token(self.access_token)
         return self._login_username_password()
@@ -131,6 +132,24 @@ class Client:
             raise UnexpectedAPIResponse(resp.status, resp.data)
 
         access_token = resp.json["access_token"]
+        return self._login_access_token(access_token)
+
+    def _login_oauth_uri(self):
+        auth_data = {"grant_type": self.grant_type}
+        auth_base64 = basic_auth_header(self.username, self.password)
+        resp = self._request(
+            "POST",
+            self.host + self.token_uri,
+            data=json.dumps(auth_data),
+            headers={"Accept": "application/json", "Content-type": "application/json", "Authorization": auth_base64},
+        )
+
+        if resp.status != 200:
+            raise UnexpectedAPIResponse(resp.status, resp.data)
+
+        json_object = json.loads(resp.data.decode())
+        access_token = json_object["result"]["access_token"]
+
         return self._login_access_token(access_token)
 
     def _request(self, method, path, data=None, headers=None):
@@ -175,8 +194,6 @@ class Client:
         if query:
             url = "{0}?{1}".format(url, urlencode(query))
         headers = dict(headers or DEFAULT_HEADERS, **self.auth_header)
-        if self.custom_headers:
-            headers = dict(headers, **self.custom_headers)
         if data is not None:
             data = json.dumps(data, separators=(",", ":"))
             headers["Content-type"] = "application/json"
